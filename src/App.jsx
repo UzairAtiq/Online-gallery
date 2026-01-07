@@ -16,43 +16,68 @@ function App() {
     }
   }, [])
 
-  // Load photos from localStorage
+  // Load photos from API
   useEffect(() => {
     if (isAuthenticated) {
-      const savedPhotos = localStorage.getItem('gallery-photos')
-      if (savedPhotos) {
-        try {
-          setPhotos(JSON.parse(savedPhotos))
-        } catch (err) {
-          console.error('Error loading photos:', err)
-        }
-      }
-      setLoading(false)
+      fetchPhotos()
     }
   }, [isAuthenticated])
 
-  // Save photos to localStorage whenever they change
-  useEffect(() => {
-    if (isAuthenticated && photos.length > 0) {
-      localStorage.setItem('gallery-photos', JSON.stringify(photos))
+  const fetchPhotos = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/photos')
+      if (!response.ok) throw new Error('Failed to fetch photos')
+      const data = await response.json()
+      setPhotos(data)
+    } catch (err) {
+      console.error('Error fetching photos:', err)
+    } finally {
+      setLoading(false)
     }
-  }, [photos, isAuthenticated])
+  }
 
   const handleUpload = async (photo) => {
-    const newPhoto = {
-      id: Date.now().toString(),
-      name: photo.name,
-      url: photo.data,
-      uploaded_at: photo.uploadedAt || new Date().toISOString(),
+    try {
+      const response = await fetch('/api/photos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: photo.name,
+          data: photo.data,
+          uploadedAt: photo.uploadedAt || new Date().toISOString(),
+        }),
+      })
+
+      if (!response.ok) throw new Error('Failed to upload photo')
+      
+      const newPhoto = await response.json()
+      setPhotos((prev) => [newPhoto, ...prev])
+    } catch (err) {
+      console.error('Error uploading photo:', err)
+      alert('Failed to upload photo. Please try again.')
     }
-    setPhotos((prev) => [newPhoto, ...prev])
   }
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this photo?")) {
       return
     }
-    setPhotos((prev) => prev.filter((photo) => photo.id !== id))
+
+    try {
+      const response = await fetch(`/api/photos?id=${id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) throw new Error('Failed to delete photo')
+      
+      setPhotos((prev) => prev.filter((photo) => photo.id !== id))
+    } catch (err) {
+      console.error('Error deleting photo:', err)
+      alert('Failed to delete photo. Please try again.')
+    }
   }
 
   if (!isAuthenticated) {
